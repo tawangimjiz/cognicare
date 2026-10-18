@@ -1,0 +1,6 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "rootDir": "./src", "tsBuildInfoFile": "./dist/tsconfig.build.tsbuildinfo" },
+  "include": ["src"],
+  "exclude": ["node_modules", "dist", "test", "prisma", "**/*spec.ts"]
+}

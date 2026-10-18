@@ -1,0 +1,188 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  patient
+  caregiver
+  doctor
+}
+
+enum SessionStatus {
+  in_progress
+  completed
+  timed_out
+  out_of_mistakes
+  abandoned
+}
+
+enum TrendDirection {
+  improving
+  stable
+  declining
+}
+
+model User {
+  id           String   @id @default(uuid()) @map("user_id") @db.Uuid
+  role         Role
+  fullName     String   @map("full_name")
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  languagePref String   @default("th") @map("language_pref")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  patientProfile PatientProfile?  @relation("PatientUser")
+  doctorOf       PatientProfile[] @relation("AssignedDoctor")
+  caregiverLinks CaregiverLink[]
+  @@map("users")
+}
+
+model PatientProfile {
+  patientId             String    @id @map("patient_id") @db.Uuid
+  user                  User      @relation("PatientUser", fields: [patientId], references: [id], onDelete: Cascade)
+  dateOfBirth           DateTime? @map("date_of_birth") @db.Date
+  mciDiagnosisDate      DateTime? @map("mci_diagnosis_date") @db.Date
+  baselineMocaScore     Int?      @map("baseline_moca_score") @db.SmallInt
+  accessibilitySettings Json      @default("{}") @map("accessibility_settings")
+  assignedDoctorId      String?   @map("assigned_doctor_id") @db.Uuid
+  assignedDoctor        User?     @relation("AssignedDoctor", fields: [assignedDoctorId], references: [id])
+  caregivers CaregiverLink[]
+  sessions   GameSession[]
+  snapshots  CognitiveTrendSnapshot[]
+  @@index([assignedDoctorId])
+  @@map("patient_profiles")
+}
+
+model CaregiverLink {
+  caregiverId  String   @map("caregiver_id") @db.Uuid
+  patientId    String   @map("patient_id") @db.Uuid
+  relationship String?
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+  caregiver User           @relation(fields: [caregiverId], references: [id], onDelete: Cascade)
+  patient   PatientProfile @relation(fields: [patientId], references: [patientId], onDelete: Cascade)
+  @@id([caregiverId, patientId])
+  @@map("caregiver_links")
+}
+
+model CognitiveDomain {
+  id     Int    @id @map("domain_id") @db.SmallInt
+  key    String @unique
+  nameTh String @map("name_th")
+  color  String
+  games   Game[]
+  metrics MetricDefinition[]
+  scores  SessionScore[]
+  snapshots CognitiveTrendSnapshot[]
+  @@map("cognitive_domains")
+}
+
+model Game {
+  id              String  @id @default(uuid()) @map("game_id") @db.Uuid
+  slug            String  @unique            // spot | oneback | maze
+  name            String
+  primaryDomainId Int     @map("primary_domain_id") @db.SmallInt
+  primaryDomain   CognitiveDomain @relation(fields: [primaryDomainId], references: [id])
+  isReady         Boolean @default(false) @map("is_ready")
+  levels   GameLevel[]
+  sessions GameSession[]
+  scores   SessionScore[]
+  metrics  MetricDefinition[]
+  @@map("games")
+}
+
+model GameLevel {
+  id                 String  @id @default(uuid()) @map("level_id") @db.Uuid
+  gameId             String  @map("game_id") @db.Uuid
+  game               Game    @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  tier               Int     @db.SmallInt     // 1..3
+  entropyScore       Float?  @map("entropy_score")
+  avgDifficultyScore Float?  @map("avg_difficulty_score")
+  imagePath          String? @map("image_path")
+  sessions GameSession[]
+  @@unique([gameId, tier])
+  @@map("game_levels")
+}
+
+model GameSession {
+  id              String        @id @default(uuid()) @map("session_id") @db.Uuid
+  patientId       String        @map("patient_id") @db.Uuid
+  patient         PatientProfile @relation(fields: [patientId], references: [patientId], onDelete: Cascade)
+  gameId          String        @map("game_id") @db.Uuid
+  game            Game          @relation(fields: [gameId], references: [id])
+  levelId         String?       @map("level_id") @db.Uuid
+  level           GameLevel?    @relation(fields: [levelId], references: [id])
+  difficultyTier  Int           @map("difficulty_tier") @db.SmallInt
+  startedAt       DateTime      @default(now()) @map("started_at") @db.Timestamptz
+  endedAt         DateTime?     @map("ended_at") @db.Timestamptz
+  totalDurationMs Int?          @map("total_duration_ms")
+  status          SessionStatus @default(in_progress) @map("session_status")
+  events SessionEvent[]
+  scores SessionScore[]
+  @@index([patientId, startedAt])
+  @@map("game_sessions")
+}
+
+model SessionEvent {
+  id             String   @id @default(uuid()) @map("event_id") @db.Uuid
+  sessionId      String   @map("session_id") @db.Uuid
+  session        GameSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  type           String   @map("event_type")   // click|hit|miss|hint|trial|...
+  reactionTimeMs Int?     @map("reaction_time_ms")
+  payload        Json     @default("{}")
+  occurredAt     DateTime @map("occurred_at") @db.Timestamptz
+  @@index([sessionId])
+  @@map("session_events")
+}
+
+model MetricDefinition {
+  id          Int     @id @default(autoincrement()) @map("metric_id")
+  gameId      String  @map("game_id") @db.Uuid
+  game        Game    @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  domainId    Int     @map("domain_id") @db.SmallInt
+  domain      CognitiveDomain @relation(fields: [domainId], references: [id])
+  maxRawScore Float   @map("max_raw_score")
+  description String?
+  @@unique([gameId, domainId])
+  @@map("metric_definitions")
+}
+
+model SessionScore {
+  id                 String   @id @default(uuid()) @map("score_id") @db.Uuid
+  sessionId          String   @map("session_id") @db.Uuid
+  session            GameSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  domainId           Int      @map("domain_id") @db.SmallInt
+  domain             CognitiveDomain @relation(fields: [domainId], references: [id])
+  gameId             String   @map("game_id") @db.Uuid    // denormalized per report
+  game               Game     @relation(fields: [gameId], references: [id])
+  errorRate          Float?   @map("error_rate")
+  meanReactionTimeMs Int?     @map("mean_reaction_time_ms")
+  rawScore           Float    @map("raw_score")
+  normalizedScore    Float    @map("normalized_score")    // 0..100
+  computedAt         DateTime @default(now()) @map("computed_at") @db.Timestamptz
+  @@unique([sessionId, domainId])
+  @@index([gameId])
+  @@map("session_scores")
+}
+
+model CognitiveTrendSnapshot {
+  id                 String   @id @default(uuid()) @map("snapshot_id") @db.Uuid
+  patientId          String   @map("patient_id") @db.Uuid
+  patient            PatientProfile @relation(fields: [patientId], references: [patientId], onDelete: Cascade)
+  domainId           Int      @map("domain_id") @db.SmallInt
+  domain             CognitiveDomain @relation(fields: [domainId], references: [id])
+  periodStart        DateTime @map("period_start") @db.Date
+  periodEnd          DateTime @map("period_end") @db.Date
+  avgNormalizedScore Float    @map("avg_normalized_score")
+  sessionCount       Int      @map("session_count")
+  trendDirection     TrendDirection @map("trend_direction")
+  flaggedForReview   Boolean  @default(false) @map("flagged_for_review")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz
+  @@unique([patientId, domainId, periodStart])
+  @@index([flaggedForReview])
+  @@map("cognitive_trend_snapshots")
+}

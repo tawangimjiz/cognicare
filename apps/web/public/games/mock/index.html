@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mock game</title>
+<style>body{font:16px system-ui;margin:16px}button{margin:4px;padding:10px 14px;font-size:16px}pre{background:#f4f4f4;padding:8px;max-height:50vh;overflow:auto}</style></head>
+<body>
+<h2>Mock game (bridge tester)</h2>
+<button id="start">Start</button><button id="event">Send event</button><button id="end">End (completed)</button><button id="exit">Exit</button>
+<h3>Received from host</h3><pre id="log"></pre>
+<script>
+var base={v:1,source:'cognicare-game',gameId:'spot'}, t0=0, log=document.getElementById('log');
+function send(m){window.parent.postMessage(Object.assign({},base,m),window.location.origin);}
+function rnd(){return Math.round(40+Math.random()*60);}
+window.addEventListener('message',function(e){
+  if(e.source!==window.parent||e.origin!==window.location.origin)return;
+  log.textContent+=JSON.stringify(e.data)+'\n';
+});
+document.getElementById('start').onclick=function(){t0=Date.now();send({type:'session:start',tier:1});};
+document.getElementById('event').onclick=function(){send({type:'session:event',event:{type:'tap',at:new Date().toISOString(),reactionTimeMs:rnd()*10}});};
+document.getElementById('end').onclick=function(){
+  send({type:'session:end',result:{status:'completed',totalDurationMs:Date.now()-t0,
+    scores:[{domain:'memory',rawScore:rnd(),errorRate:Math.random()*0.3,meanReactionTimeMs:rnd()*10}]}});};
+document.getElementById('exit').onclick=function(){send({type:'exit'});};
+send({type:'ready'});
+</script></body></html>
