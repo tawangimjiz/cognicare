@@ -74,3 +74,29 @@ npx newman run docs/cognicare.postman_collection.json   # needs the API running 
 
 `/patient/games/mock` (a fake game that speaks the bridge) exists only in dev (`npm run dev:web`).
 Day boundaries ("today", streaks, report ranges) use Asia/Bangkok time.
+
+## Deploy
+
+Docker (postgres, redis, api, web; db/redis not exposed to the host). The API runs `prisma migrate deploy` on start.
+
+| Env var | Required | Default | Notes |
+|---|---|---|---|
+| `POSTGRES_PASSWORD` | yes | | DB password |
+| `JWT_SECRET` | yes | | 32+ random chars |
+| `PUBLIC_API_URL` | no | `http://localhost:4000/api` | API URL as seen by browsers; baked into the web build |
+| `WEB_ORIGIN` | no | `http://localhost:3000` | CORS origin allowed by the API |
+| `API_PORT` / `WEB_PORT` | no | 4000 / 3000 | host ports |
+
+```bash
+export POSTGRES_PASSWORD=... JWT_SECRET=$(openssl rand -hex 24)
+docker compose -f docker-compose.prod.yml up -d --build --wait
+curl localhost:4000/api/health
+```
+
+Changing `PUBLIC_API_URL` needs `--build`.
+
+The prod stack starts with an empty database (no accounts; doctors cannot self-register). For a demo/staging stack only,
+load the demo data with `docker compose -f docker-compose.prod.yml exec api npm run db:seed`: it **wipes all tables**
+and creates the demo accounts with the public password `password123`, so never run it on a real deployment.
+
+ CI (`.github/workflows/ci.yml`) runs typecheck, unit + e2e tests and the web build on push/PR to main.

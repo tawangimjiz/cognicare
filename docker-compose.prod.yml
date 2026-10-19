@@ -1,0 +1,61 @@
+# Required env: POSTGRES_PASSWORD, JWT_SECRET (32+ chars). Optional: WEB_ORIGIN, PUBLIC_API_URL, API_PORT, WEB_PORT.
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: cognicare
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: cognicare
+    volumes: [pgdata:/var/lib/postgresql/data]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cognicare -d cognicare"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+  api:
+    build: { context: ., dockerfile: apps/api/Dockerfile }
+    environment:
+      DATABASE_URL: postgresql://cognicare:${POSTGRES_PASSWORD}@postgres:5432/cognicare
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET (32+ chars)}
+      WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:3000}
+      PORT: 4000
+    ports: ["${API_PORT:-4000}:4000"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:4000/api/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        # baked into the browser bundle at build time: must be the URL browsers use to reach the API
+        NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:4000/api}
+    ports: ["${WEB_PORT:-3000}:3000"]
+    depends_on:
+      api: { condition: service_healthy }
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 15s
+volumes:
+  pgdata:
