@@ -12,6 +12,8 @@
     "test": "npm test -w apps/api",
     "test:e2e": "npm run test:e2e -w apps/api",
     "db:migrate": "npm run db:migrate -w apps/api",
-    "db:seed": "npm run db:seed -w apps/api"
+    "db:seed": "npm run db:seed -w apps/api",
+    "user:create": "npm run user:create -w apps/api --",
+    "user:link": "npm run user:link -w apps/api --"
   }
 }

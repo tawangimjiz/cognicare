@@ -2,6 +2,7 @@ import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/co
 import { JwtService } from '@nestjs/jwt';
 import type { AuthResponse, LoginBody, RegisterBody } from '@cognicare/shared';
 import * as bcrypt from 'bcryptjs';
+import { hashPassword, normalizeEmail } from './credentials';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
@@ -17,14 +18,14 @@ export class AuthService {
   ) {}
 
   async register(body: RegisterBody): Promise<AuthResponse> {
-    const email = body.email.trim().toLowerCase();
+    const email = normalizeEmail(body.email);
     if (await this.prisma.user.findUnique({ where: { email } })) throw new ConflictException('Email already registered');
     const user = await this.prisma.user.create({
       data: {
         email,
         role: body.role,
         fullName: body.fullName.trim(),
-        passwordHash: await bcrypt.hash(body.password, 10),
+        passwordHash: await hashPassword(body.password),
         ...(body.role === 'patient' ? { patientProfile: { create: {} } } : {}),
       },
       include: { patientProfile: true },
@@ -34,7 +35,7 @@ export class AuthService {
 
   async login(body: LoginBody): Promise<AuthResponse> {
     const user = await this.prisma.user.findUnique({
-      where: { email: body.email.trim().toLowerCase() },
+      where: { email: normalizeEmail(body.email) },
       include: { patientProfile: true },
     });
     if (!user || !(await bcrypt.compare(body.password, user.passwordHash))) {

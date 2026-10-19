@@ -99,4 +99,26 @@ The prod stack starts with an empty database (no accounts; doctors cannot self-r
 load the demo data with `docker compose -f docker-compose.prod.yml exec api npm run db:seed`: it **wipes all tables**
 and creates the demo accounts with the public password `password123`, so never run it on a real deployment.
 
+### Production bootstrap (create doctors/caregivers, link them)
+
+Self-registration only offers patient/caregiver, so create the first accounts with the admin CLI (inside the api
+container; the same commands work locally as `npm run user:create -- ...`). Passwords are never taken from argv:
+set `CREATE_USER_PASSWORD`, or use `--generate` (prints a 20-char password once), or omit both to get a hidden prompt
+(needs `-it`, i.e. drop `-T` on non-interactive shells). The commands refuse duplicate emails and never modify existing users.
+
+```bash
+C="docker compose -f docker-compose.prod.yml exec api"
+$C npm run -s user:create -- --email dr@clinic.example --name "Dr. Somchai" --role doctor --generate
+read -rs PW   # type the password here, never literally in a command (shell history / ps)
+CREATE_USER_PASSWORD="$PW" docker compose -f docker-compose.prod.yml exec -e CREATE_USER_PASSWORD api npm run -s user:create -- --email p@example.com --name "Somchai" --role patient
+$C npm run -s user:create -- --email c@example.com --name "Daughter" --role caregiver --generate   # --language th|en optional
+
+# idempotent; emails of existing users. --relationship is optional
+$C npm run -s user:link -- --patient p@example.com --caregiver c@example.com --relationship daughter
+$C npm run -s user:link -- --patient p@example.com --doctor dr@clinic.example
+```
+
+Roles: `patient` (also gets a patient profile), `caregiver`, `doctor`. Exit code is non-zero on any error. To pass a
+variable into the container use `exec -e CREATE_USER_PASSWORD api ...` (as in the patient example above).
+
  CI (`.github/workflows/ci.yml`) runs typecheck, unit + e2e tests and the web build on push/PR to main.
