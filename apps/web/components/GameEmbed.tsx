@@ -3,20 +3,20 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { GAMES, parseGameMessage } from '@cognicare/shared';
-import type { AccessibilitySettings, EndSessionBody, GameSlug, HostToGame, SessionDto, StartSessionResponse } from '@cognicare/shared';
+import type { Tier, AccessibilitySettings, EndSessionBody, GameSlug, HostToGame, SessionDto, StartSessionResponse } from '@cognicare/shared';
 import ComingSoon from './ComingSoon';
 
 export interface GameEmbedProps {
-  gameId: GameSlug | 'mock';
+  gameId: GameSlug | 'mock' | 'mock-oneback';
   settings: AccessibilitySettings;
-  onStart(tier: 1 | 2 | 3): Promise<StartSessionResponse>;
+  onStart(tier: Tier): Promise<StartSessionResponse>;
   onEnd(sessionId: string, body: EndSessionBody): Promise<SessionDto>;
   onExit(): void;
   fallback?: ReactNode;
 }
 
-// The mock page speaks as gameId 'spot' (parseGameMessage only accepts real slugs).
-const bridgeId = (id: GameEmbedProps['gameId']): GameSlug => (id === 'mock' ? 'spot' : id);
+// The mock page speaks as 'spot' (mock) or 'oneback' (mock-oneback); parseGameMessage only accepts real slugs.
+export const bridgeId = (id: GameEmbedProps['gameId']): GameSlug => (id === 'mock' ? 'spot' : id === 'mock-oneback' ? 'oneback' : id);
 
 export default function GameEmbed({ gameId, settings, onStart, onEnd, onExit, fallback }: GameEmbedProps) {
   const [state, setState] = useState<'checking' | 'ready' | 'missing'>('checking');
@@ -26,18 +26,31 @@ export default function GameEmbed({ gameId, settings, onStart, onEnd, onExit, fa
   const latest = useRef({ settings, onStart, onEnd, onExit });
   latest.current = { settings, onStart, onEnd, onExit };
 
-  const src = `/games/${gameId}/index.html`;
+  const [version, setVersion] = useState<string | null>(null);
+
+  const src = gameId === 'mock-oneback' ? '/games/mock/index.html?mode=oneback' : `/games/${gameId}/index.html`;
 
   useEffect(() => {
     let alive = true;
     setState('checking');
-    fetch(src, { method: 'HEAD' })
-      .then((r) => alive && setState(r.ok ? 'ready' : 'missing'))
-      .catch(() => alive && setState('missing'));
+    setVersion(null);
+    // version.json is written by `npm run game:publish`; absent (mock, hand-copied builds) -> no ?v= param.
+    const ver: Promise<string | null> =
+      gameId === 'mock' || gameId === 'mock-oneback'
+        ? Promise.resolve(null)
+        : fetch(`/games/${gameId}/version.json`, { cache: 'no-store' })
+            .then((r) => (r.ok ? r.json() : null))
+            .then((j) => (typeof j?.version === 'string' && /^[0-9a-f]{6,64}$/.test(j.version) ? (j.version as string) : null))
+            .catch(() => null);
+    Promise.all([fetch(src, { method: 'HEAD' }).then((r) => r.ok, () => false), ver]).then(([ok, v]) => {
+      if (!alive) return;
+      setVersion(v);
+      setState(ok ? 'ready' : 'missing');
+    });
     return () => {
       alive = false;
     };
-  }, [src]);
+  }, [src, gameId]);
 
   const post = useCallback((msg: HostToGame) => {
     frame.current?.contentWindow?.postMessage(msg, window.location.origin);
@@ -91,7 +104,7 @@ export default function GameEmbed({ gameId, settings, onStart, onEnd, onExit, fa
   return (
     <iframe
       ref={frame}
-      src={src}
+      src={version ? `${src}?v=${version}` : src}
       title={`เกม ${gameId}`}
       style={{ width: '100%', height: '75vh', border: 0 }}
       sandbox="allow-scripts allow-same-origin"

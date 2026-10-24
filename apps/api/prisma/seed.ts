@@ -53,7 +53,7 @@ async function main() {
     const row = await prisma.game.create({
       data: {
         slug: g.id, name: g.name, primaryDomainId: g.domainIdx + 1, isReady: g.id === 'spot',
-        levels: { create: [1, 2, 3].map((tier) => ({ tier })) },
+        levels: { create: [1, 2, 3, 4, 5].map((tier) => ({ tier })) },
       },
     });
     gameId[g.id] = row.id;

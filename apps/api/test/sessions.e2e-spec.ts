@@ -1,10 +1,12 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
+import { PrismaClient } from '@prisma/client';
 import { AppModule } from '../src/app.module';
 
 describe('Sessions / progress / patients (e2e, seeded DB)', () => {
   let app: INestApplication;
+  const prisma = new PrismaClient();
   const http = () => request(app.getHttpServer());
   const tokens: Record<string, string> = {};
   const auth = (who: string) => ({ Authorization: `Bearer ${tokens[who]}` });
@@ -24,7 +26,7 @@ describe('Sessions / progress / patients (e2e, seeded DB)', () => {
       tokens[k] = r.body.accessToken;
     }
   });
-  afterAll(() => app.close());
+  afterAll(async () => { await prisma.$disconnect(); await app.close(); });
 
   it('patient start -> end -> results -> progress +1; leaderboard updated', async () => {
     const before = await http().get('/api/progress/me').set(auth('patient')).expect(200);
@@ -53,6 +55,24 @@ describe('Sessions / progress / patients (e2e, seeded DB)', () => {
     await http().put(`/api/sessions/${sid}`).set(auth('patient')).send({
       status: 'completed', totalDurationMs: 1, scores: [{ domain: 'focus', rawScore: 1 }],
     }).expect(409);
+  });
+
+  it('oneback tier 4 start + end with metrics stored in DB', async () => {
+    const start = await http().post('/api/sessions').set(auth('patient')).send({ gameId: 'oneback', tier: 4 }).expect(201);
+    const sid = start.body.sessionId;
+    await http().post('/api/sessions').set(auth('patient')).send({ gameId: 'oneback', tier: 6 }).expect(400);
+    await http().put(`/api/sessions/${sid}`).set(auth('patient')).send({
+      status: 'completed', totalDurationMs: 1000, scores: [{ domain: 'focus', rawScore: 70 }],
+      metrics: { big: 'x'.repeat(33 * 1024) },
+    }).expect(400);
+    const end = await http().put(`/api/sessions/${sid}`).set(auth('patient')).send({
+      status: 'completed', totalDurationMs: 1000, scores: [{ domain: 'focus', rawScore: 70 }],
+      events: [{ type: 'trial', at: new Date().toISOString(), data: { index: 0, correct: true } }],
+      metrics: { clinical: { dPrime: 1.4 } },
+    }).expect(200);
+    expect(end.body.tier).toBe(4);
+    const row = await prisma.gameSession.findUniqueOrThrow({ where: { id: sid } });
+    expect(row.metrics).toEqual({ clinical: { dPrime: 1.4 } });
   });
 
   it('400 on unknown game, bad tier, missing metric; 403 on other patient session', async () => {

@@ -7,16 +7,30 @@
 <button id="start">Start</button><button id="event">Send event</button><button id="end">End (completed)</button><button id="exit">Exit</button>
 <h3>Received from host</h3><pre id="log"></pre>
 <script>
-var base={v:1,source:'cognicare-game',gameId:'spot'}, t0=0, log=document.getElementById('log');
+var oneback=new URLSearchParams(location.search).get('mode')==='oneback';
+var base={v:1,source:'cognicare-game',gameId:oneback?'oneback':'spot'}, t0=0, trials=[], log=document.getElementById('log');
 function send(m){window.parent.postMessage(Object.assign({},base,m),window.location.origin);}
 function rnd(){return Math.round(40+Math.random()*60);}
 window.addEventListener('message',function(e){
   if(e.source!==window.parent||e.origin!==window.location.origin)return;
   log.textContent+=JSON.stringify(e.data)+'\n';
 });
-document.getElementById('start').onclick=function(){t0=Date.now();send({type:'session:start',tier:1});};
-document.getElementById('event').onclick=function(){send({type:'session:event',event:{type:'tap',at:new Date().toISOString(),reactionTimeMs:rnd()*10}});};
+document.getElementById('start').onclick=function(){t0=Date.now();trials=[];send({type:'session:start',tier:oneback?4:1});};
+document.getElementById('event').onclick=function(){
+  if(oneback){var tr=mkTrial(trials.length);trials.push(tr);send({type:'session:event',event:tr});return;}
+  send({type:'session:event',event:{type:'tap',at:new Date().toISOString(),reactionTimeMs:rnd()*10}});};
+function mkTrial(i){var target=Math.random()<0.3,resp=Math.random()<(target?0.8:0.1),rt=300+Math.round(Math.random()*500);
+  return {type:'trial',at:new Date().toISOString(),reactionTimeMs:resp?rt:undefined,data:{index:i,nBack:2,isTarget:target,responded:resp,correct:resp===target}};}
 document.getElementById('end').onclick=function(){
+  if(oneback){while(trials.length<20)trials.push(mkTrial(trials.length));
+    var hits=trials.filter(function(t){return t.data.isTarget&&t.data.responded}).length,tg=trials.filter(function(t){return t.data.isTarget}).length,
+        fa=trials.filter(function(t){return !t.data.isTarget&&t.data.responded}).length,nt=trials.length-tg,rts=trials.filter(function(t){return t.reactionTimeMs}).map(function(t){return t.reactionTimeMs});
+    var mrt=rts.length?Math.round(rts.reduce(function(a,b){return a+b},0)/rts.length):0;
+    send({type:'session:end',result:{status:'completed',totalDurationMs:Date.now()-t0,
+      scores:[{domain:'focus',rawScore:Math.round(100*(hits+nt-fa)/trials.length),errorRate:(tg-hits+fa)/trials.length,meanReactionTimeMs:mrt}],
+      events:trials,
+      metrics:{nBack:2,trials:trials.length,hits:hits,misses:tg-hits,falseAlarms:fa,correctRejections:nt-fa,
+        clinical:{dPrime:1.2,criterion:0.1,hitRate:tg?hits/tg:0,faRate:nt?fa/nt:0,meanRtMs:mrt,rtSd:{ms:90}},device:{ua:'mock'}}}});return;}
   send({type:'session:end',result:{status:'completed',totalDurationMs:Date.now()-t0,
     scores:[{domain:'memory',rawScore:rnd(),errorRate:Math.random()*0.3,meanReactionTimeMs:rnd()*10}]}});};
 document.getElementById('exit').onclick=function(){send({type:'exit'});};
