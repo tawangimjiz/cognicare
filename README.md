@@ -69,11 +69,62 @@ npm run typecheck
 npm test                                    # API unit tests + coverage gate (80% lines)
 npm run test:e2e                            # needs docker up + seeded DB
 node --test packages/shared/test/*.test.mjs # game bridge
+node --test scripts/*.test.mjs   # game publish/fetch scripts (also run by npm test)
 npx newman run docs/cognicare.postman_collection.json   # needs the API running on :4000
 ```
 
 `/patient/games/mock` (a fake game that speaks the bridge) exists only in dev (`npm run dev:web`).
 Day boundaries ("today", streaks, report ranges) use Asia/Bangkok time.
+
+## Updating a game build
+
+Unity WebGL builds are **not stored in git** (no Git LFS). Each build is a GitHub **release asset**
+(`game-<id>-<version>` / `<id>-<version>.zip`, hard limit 2 GB per asset); git holds only the small manifest
+`apps/web/public/games/<id>/version.json` (`spot`, `oneback`, `maze`). The build files themselves are git-ignored and
+are downloaded by `npm run game:fetch`.
+
+1. In Unity, Player Settings > Publishing Settings: set **Compression Format = Disabled** (Next.js does not send
+   `Content-Encoding`, so `.br`/`.gz`/`.unityweb` files fail to load) and enable **Name Files As Hashes** (the
+   `Build/` file names then change whenever the content changes, so browsers never reuse a stale `.wasm`/`.data`).
+2. Build for WebGL into a directory outside the repo.
+3. Publish: `npm run game:publish -- <gameId> <path-to-unity-build-dir> [--dry-run] [--release]`. It validates the build
+   (index.html, Build/ with loader/framework/data/wasm, TemplateData/), installs it locally into
+   `apps/web/public/games/<id>/` (via a temp dir; stale hashed files disappear; other games are untouched), builds
+   `dist-games/<id>-<version>.zip` (git-ignored; deterministic zip written by the script itself, no extra dependency),
+   writes the manifest and prints per-file sizes (warns above 500 MB, fails above 2 GB) and loud warnings about compressed files.
+   `--dry-run` validates and reports without writing. Source and destination must be different directories.
+4. Upload the zip as a release asset. Either re-run the publish with `--release` (needs `gh auth login`; refuses unless the
+   `origin` remote is `tawangimjiz/cognicare`, override with `GAME_RELEASE_REPO=owner/repo`; creates the release, or
+   `gh release upload --clobber` if the tag exists; prints the release URL) or run the `gh release create ...` command that
+   the script prints when `--release` is not given. Uploading is never automatic.
+5. Commit **only** `apps/web/public/games/<id>/version.json`:
+   `{"version": "<12 hex>", "publishedAt": "<ISO>", "tag": "game-<id>-<version>", "asset": "<id>-<version>.zip", "sha256": "<zip sha256>", "bytes": N}`.
+   `GameEmbed` fetches it (no-store) and loads the page as `index.html?v=<version>` (only `version` is used), so the page itself is
+   re-fetched when the build changes. A game without a manifest or build shows the "coming soon" screen.
+6. Everyone else runs `npm run game:fetch` after pulling: for each game whose build is missing or whose
+   `public/games/<id>/.fetched-version` differs from the manifest it downloads the release asset (`gh release download` when `gh`
+   is authenticated, otherwise a plain HTTPS download from `https://github.com/<owner>/<repo>/releases/download/<tag>/<asset>`),
+   verifies size and sha256 against the manifest (mismatch = error, nothing is extracted), extracts safely (no `..`, absolute
+   paths or symlinks; only `index.html`, `Build/`, `TemplateData/`) into a temp dir and swaps it in. Up-to-date games are skipped.
+   Only zips written by `game:publish` are supported: zips from other tools are usually rejected (Windows PowerShell 5.1
+   `Compress-Archive` writes `\` separators, `zip -r`/7-Zip add directory entries).
+   `npm run game:fetch -- --check` only reports missing/outdated games (no network, exit 1 if any). `<owner>/<repo>` comes from
+   `GAME_RELEASE_REPO` or the `origin` remote.
+
+**Rollback.** Edit `version.json` back to the older manifest (`git checkout <rev> -- apps/web/public/games/<id>/version.json`; the old
+release asset `game-<id>-<old version>` still exists, never delete releases you may roll back to) and run `npm run game:fetch`.
+
+**Private repo.** Anonymous downloads fail for a private repository. Either `gh auth login` (used first) or set
+`GAME_FETCH_TOKEN` to a token with read access to the repo contents (fine-grained PAT, "Contents: read").
+
+**Docker.** `apps/web/Dockerfile` runs `node scripts/game-fetch.mjs` before `next build` (alpine has no `gh`/`git`, so it uses
+HTTPS and the `GAME_RELEASE_REPO` build arg, default `tawangimjiz/cognicare`). For a private repo pass the token as a BuildKit
+secret, not an arg: `GAME_FETCH_TOKEN=... docker compose -f docker-compose.prod.yml build web` (compose maps it to the
+`game_fetch_token` secret; it never enters image layers or history). `SKIP_GAME_FETCH=1` skips the download with a loud warning
+(the games then show "coming soon"). A missing release or a checksum mismatch fails the image build. Rebuild after publishing:
+`docker compose -f docker-compose.prod.yml up -d --build`.
+
+**CI** does not fetch games: tests and `next build` pass with only the manifests checked out.
 
 ## Deploy
 
