@@ -95,9 +95,10 @@ curl localhost:4000/api/health
 
 Changing `PUBLIC_API_URL` needs `--build`.
 
-The prod stack starts with an empty database (no accounts; doctors cannot self-register). For a demo/staging stack only,
-load the demo data with `docker compose -f docker-compose.prod.yml exec api npm run db:seed`: it **wipes all tables**
-and creates the demo accounts with the public password `password123`, so never run it on a real deployment.
+The prod stack starts with no accounts (doctors cannot self-register). Domains, games, levels and metric definitions
+are created by the migrations, so sessions work without the seed. For a demo/staging stack only, load the demo data with
+`docker compose -f docker-compose.prod.yml exec api npm run db:seed`: it **wipes all users and sessions** and creates the
+demo accounts with the public password `password123`, so never run it on a real deployment.
 
 ### Production bootstrap (create doctors/caregivers, link them)
 

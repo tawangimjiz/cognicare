@@ -1,4 +1,4 @@
-/* Idempotent seed: wipes all tables, then inserts demo data (mirrors the HTML prototype). */
+/* Idempotent seed: wipes user and session data, then inserts demo data (mirrors the HTML prototype). */
 import { PrismaClient, TrendDirection } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { randomUUID } from 'crypto';
@@ -40,31 +40,12 @@ async function main() {
   await prisma.caregiverLink.deleteMany();
   await prisma.patientProfile.deleteMany();
   await prisma.user.deleteMany();
-  await prisma.metricDefinition.deleteMany();
-  await prisma.gameLevel.deleteMany();
-  await prisma.game.deleteMany();
-  await prisma.cognitiveDomain.deleteMany();
 
-  await prisma.cognitiveDomain.createMany({
-    data: DOMAINS.map((d, i) => ({ id: i + 1, key: d.key, nameTh: d.th, color: d.color })),
-  });
+  // Domains, games, levels and metric definitions come from the reference_data migration.
   const gameId: Record<string, string> = {};
-  for (const g of GAMES) {
-    const row = await prisma.game.create({
-      data: {
-        slug: g.id, name: g.name, primaryDomainId: g.domainIdx + 1, isReady: g.id === 'spot',
-        levels: { create: [1, 2, 3].map((tier) => ({ tier })) },
-      },
-    });
-    gameId[g.id] = row.id;
-  }
+  for (const g of await prisma.game.findMany()) gameId[g.slug] = g.id;
+  if (GAMES.some((g) => !gameId[g.id])) throw new Error('games missing: run `npm run db:migrate` first');
   const domId = (key: string) => DOMAINS.findIndex((d) => d.key === key) + 1;
-  const metrics: Record<string, string[]> = { spot: ['memory', 'focus'], oneback: ['focus', 'speed'], maze: ['direction', 'speed'] };
-  await prisma.metricDefinition.createMany({
-    data: Object.entries(metrics).flatMap(([slug, keys]) =>
-      keys.map((k) => ({ gameId: gameId[slug], domainId: domId(k), maxRawScore: 100 })),
-    ),
-  });
 
   const hash = await bcrypt.hash('password123', 10);
   const doctor = await prisma.user.create({
