@@ -13,10 +13,18 @@ Unity WebGL builds live at `apps/web/public/games/<gameId>/index.html` (`spot`, 
 | type | extra fields |
 |---|---|
 | `ready` | |
-| `session:start` | `tier: 1\|2\|3` |
+| `session:start` | `tier: 1..5` (1 easy, 2 medium, 3 hard, 4 = 2-back, 5 = 3-back; a tier needs a `game_levels` row, seeded for all games) |
 | `session:event` | `event: {type, at(ISO), reactionTimeMs?, data?}` |
-| `session:end` | `result: {status: completed\|timed_out\|out_of_mistakes\|abandoned, totalDurationMs, scores: [{domain, rawScore, errorRate?, meanReactionTimeMs?}] (1..6), events?: (<=500)}` |
+| `session:end` | `result: {status: completed\|timed_out\|out_of_mistakes\|abandoned, totalDurationMs, scores: [{domain, rawScore, errorRate?, meanReactionTimeMs?}] (1..6), events?: (<=500), metrics?: object}` |
 | `exit` | |
+
+`result.metrics` (optional): plain JSON object (not an array), nesting depth <= 4 (top level = 1, arrays count as a level), `JSON.stringify` length <= 32768 characters, numbers must be finite; otherwise the message is dropped by the host (and the API answers 400). Stored in `game_sessions.metrics` (JSONB), not returned by the API. Use it for clinical values (e.g. oneback: `dPrime`, criterion, hit/false-alarm rates, per-condition RT). `events[].data` may be any plain object (not an array). The API additionally requires `at` to be ISO 8601, `reactionTimeMs` / `meanReactionTimeMs` to be integers >= 0, `rawScore >= 0` and `errorRate` in 0..1. The whole `PUT /sessions/:id` JSON body is capped at 512KB.
+
+### oneback conventions
+- Scores domain is `focus` (optionally `speed`), e.g. `{domain:'focus', rawScore, errorRate, meanReactionTimeMs}`.
+- Each trial is one entry in `result.events` (`type:'trial'`, `at`, `reactionTimeMs?`, `data:{index, nBack, isTarget, responded, correct}`), max 500.
+- `status:'abandoned'` when the player quits early; send `session:end` with whatever scores exist (at least one score is required). `session:event` is still ignored by the host.
+- No query params and no token: the build is loaded as `/games/oneback/index.html` and the host owns auth.
 
 `gameId` must equal the slug of the embedding page. Anything with a wrong `v`, `source`, `gameId`, type or shape is silently dropped (`parseGameMessage` returns null), as are messages from another origin or window.
 
@@ -26,5 +34,9 @@ Unity WebGL builds live at `apps/web/public/games/<gameId>/index.html` (`spot`, 
 ## Unity
 Copy `docs/unity/CogniCareBridge.jslib` to `Assets/Plugins/WebGL/`. Call `CogniCareListen()` once at start, `CogniCareSend(json)` to send, and implement `OnHostMessage(string json)` on a GameObject named `CogniCareBridge`.
 
+## Unity build notes
+- Player Settings > Publishing > Compression Format = **Disabled** (Next static hosting does not send `Content-Encoding` for .br/.gz builds).
+- Builds are not committed (no Git LFS). `npm run game:publish` zips the build as a GitHub release asset (limit 2 GB per file, warns above 500 MB); only `public/games/<id>/version.json` is in git and `npm run game:fetch` downloads the build. Also enable Name Files As Hashes. See README "Updating a game build".
+
 ## Testing without Unity
-`/patient/games/mock` loads `public/games/mock/index.html` (speaks as `spot`) with Start / Send event / End / Exit buttons and a log of host messages.
+`/patient/games/mock` loads `public/games/mock/index.html` (speaks as `spot`, tier 1). `/patient/games/mock-oneback` loads the same page with `?mode=oneback` (speaks as `oneback`, tier 4, trial events and a realistic `metrics` payload) with Start / Send event / End / Exit buttons and a log of host messages.

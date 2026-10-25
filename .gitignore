@@ -8,3 +8,14 @@ coverage
 next-env.d.ts
 .env.*
 !.env.example
+apps/web/public/games/.publish-*
+
+# Unity builds are GitHub Release assets (game:fetch); only version.json manifests are committed
+apps/web/public/games/spot/*
+!apps/web/public/games/spot/version.json
+apps/web/public/games/oneback/*
+!apps/web/public/games/oneback/version.json
+apps/web/public/games/maze/*
+!apps/web/public/games/maze/version.json
+dist-games/
+apps/web/public/games/.fetch-*

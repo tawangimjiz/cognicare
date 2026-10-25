@@ -1,4 +1,6 @@
-# Required env: POSTGRES_PASSWORD, JWT_SECRET (32+ chars). Optional: WEB_ORIGIN, PUBLIC_API_URL, API_PORT, WEB_PORT.
+# Required env: POSTGRES_PASSWORD, JWT_SECRET (32+ chars). Optional: WEB_ORIGIN, PUBLIC_API_URL, API_PORT, WEB_PORT,
+# GAME_RELEASE_REPO (owner/repo of the game release assets), GAME_FETCH_TOKEN (build secret, private repos only),
+# SKIP_GAME_FETCH=1 (build without Unity games).
 services:
   postgres:
     image: postgres:16-alpine
@@ -47,6 +49,9 @@ services:
       args:
         # baked into the browser bundle at build time: must be the URL browsers use to reach the API
         NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:4000/api}
+        GAME_RELEASE_REPO: ${GAME_RELEASE_REPO:-tawangimjiz/cognicare}
+        SKIP_GAME_FETCH: ${SKIP_GAME_FETCH:-0}
+      secrets: [game_fetch_token]  # BuildKit secret: not stored in image layers or history
     ports: ["${WEB_PORT:-3000}:3000"]
     depends_on:
       api: { condition: service_healthy }
@@ -57,5 +62,8 @@ services:
       timeout: 3s
       retries: 10
       start_period: 15s
+secrets:
+  game_fetch_token:
+    environment: GAME_FETCH_TOKEN
 volumes:
   pgdata:

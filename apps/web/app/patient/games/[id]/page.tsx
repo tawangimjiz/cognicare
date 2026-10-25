@@ -4,7 +4,7 @@ import { use } from 'react';
 import { notFound, useRouter } from 'next/navigation';
 import { GAMES } from '@cognicare/shared';
 import type { AccessibilitySettings, GameSlug } from '@cognicare/shared';
-import GameEmbed from '../../../../components/GameEmbed';
+import GameEmbed, { bridgeId } from '../../../../components/GameEmbed';
 import SpotDemo from '../../../../components/patient/SpotDemo';
 import { api } from '../../../../lib/api';
 import { useAuth } from '../../../../lib/auth';
@@ -15,10 +15,10 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
   const { id } = use(params);
   const router = useRouter();
   const { user } = useAuth();
-  const isMock = id === 'mock' && process.env.NODE_ENV !== 'production';
+  const isMock = (id === 'mock' || id === 'mock-oneback') && process.env.NODE_ENV !== 'production';
   if (!isMock && !GAMES.some((g) => g.id === id)) notFound();
-  const gameId = id as GameSlug | 'mock';
-  const slug: GameSlug = gameId === 'mock' ? 'spot' : gameId;
+  const gameId = id as GameSlug | 'mock' | 'mock-oneback';
+  const slug: GameSlug = bridgeId(gameId);
 
   return (
     <GameEmbed

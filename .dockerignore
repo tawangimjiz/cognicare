@@ -8,3 +8,13 @@
 .git
 *.png
 docs
+dist-games
+# Unity builds come only from game:fetch inside the build (sha256-verified), never from the local working tree
+apps/web/public/games/spot/*
+!apps/web/public/games/spot/version.json
+apps/web/public/games/oneback/*
+!apps/web/public/games/oneback/version.json
+apps/web/public/games/maze/*
+!apps/web/public/games/maze/version.json
+apps/web/public/games/.publish-*
+apps/web/public/games/.fetch-*

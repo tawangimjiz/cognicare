@@ -13,11 +13,13 @@ export interface AuthResponse { accessToken: string; user: UserDto }
 
 export interface GameDto { id: GameSlug; name: string; domain: DomainKey; ready: boolean }
 
-export interface StartSessionBody { gameId: GameSlug; tier: 1 | 2 | 3 }
+/** 1=easy 2=medium 3=hard 4=2-back 5=3-back */
+export type Tier = 1 | 2 | 3 | 4 | 5;
+export interface StartSessionBody { gameId: GameSlug; tier: Tier }
 export interface StartSessionResponse { sessionId: string; startedAt: string }
 export interface ScoreInput { domain: DomainKey; rawScore: number; errorRate?: number /*0..1*/; meanReactionTimeMs?: number }
 export interface SessionEventInput { type: string; at: string /*ISO*/; reactionTimeMs?: number; data?: Record<string, unknown> }
-export interface EndSessionBody { status: Exclude<SessionStatus, 'in_progress'>; totalDurationMs: number; scores: ScoreInput[] /*1..6*/; events?: SessionEventInput[] /*<=500*/ }
+export interface EndSessionBody { status: Exclude<SessionStatus, 'in_progress'>; totalDurationMs: number; scores: ScoreInput[] /*1..6*/; events?: SessionEventInput[] /*<=500*/; metrics?: Record<string, unknown> /*object, <=32KB, depth<=4*/ }
 export interface SessionScoreDto { domain: DomainKey; rawScore: number; normalizedScore: number; errorRate: number | null; meanReactionTimeMs: number | null }
 export interface SessionDto { id: string; gameId: GameSlug; tier: number; status: SessionStatus; startedAt: string; endedAt: string | null; totalDurationMs: number | null; score: number /*mean normalized, 0 if none*/; scores: SessionScoreDto[] }
 export interface ResultsResponse { items: SessionDto[] }

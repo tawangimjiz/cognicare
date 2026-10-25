@@ -48,9 +48,26 @@ describe('SessionsService.start', () => {
     const b = setup({ gameLevel: { findUnique: jest.fn().mockResolvedValue(null) } });
     await expect(b.svc.start(P, { gameId: 'spot', tier: 3 })).rejects.toBeInstanceOf(BadRequestException);
   });
+  it('accepts tier 5', async () => {
+    const { svc, prisma } = setup();
+    await svc.start(P, { gameId: 'oneback', tier: 5 });
+    expect(prisma.gameSession.create).toHaveBeenCalledWith({ data: expect.objectContaining({ difficultyTier: 5 }) });
+  });
 });
 
 describe('SessionsService.end', () => {
+  it('stores metrics', async () => {
+    const { svc, tx } = setup();
+    await svc.end(P, 's1', body({ metrics: { dPrime: 1.5 } }) as any);
+    expect(tx.gameSession.update).toHaveBeenCalledWith({ where: { id: 's1' }, data: expect.objectContaining({ metrics: { dPrime: 1.5 } }) });
+  });
+  it('400 on oversized / too deep / array metrics', async () => {
+    for (const metrics of [{ big: 'x'.repeat(33 * 1024) }, { a: { b: { c: { d: { e: 1 } } } } }, [1], { a: Infinity }]) {
+      const { svc, tx } = setup();
+      await expect(svc.end(P, 's1', body({ metrics }) as any)).rejects.toBeInstanceOf(BadRequestException);
+      expect(tx.gameSession.update).not.toHaveBeenCalled();
+    }
+  });
   it('404 / 403 / 409', async () => {
     const find = (v: any) => setup({ gameSession: { findUnique: jest.fn().mockResolvedValue(v) } }).svc;
     await expect(find(null).end(P, 's1', body() as any)).rejects.toBeInstanceOf(NotFoundException);

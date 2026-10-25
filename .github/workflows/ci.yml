@@ -23,6 +23,8 @@ jobs:
       JWT_SECRET: ci-test-secret-ci-test-secret-ci-test
     steps:
       - uses: actions/checkout@v4
+        # No game:fetch here on purpose: Unity builds are GitHub release assets, not in git. Only version.json manifests
+        # are checked out, and the web build/tests pass without the game files (GameEmbed shows ComingSoon when index.html is missing).
       - uses: actions/setup-node@v4
         with: { node-version: 24, cache: npm }
       - run: npm ci   # postinstall builds shared + prisma generate

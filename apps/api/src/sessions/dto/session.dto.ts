@@ -7,7 +7,7 @@ const DOMAIN_KEYS = ['focus', 'speed', 'direction', 'language', 'memory', 'mood'
 
 export class StartSessionDto {
   @IsString() gameId!: string;
-  @IsInt() @Min(1) @Max(3) tier!: number;
+  @IsInt() @Min(1) @Max(5) tier!: number;
 }
 
 export class ScoreInputDto {
@@ -31,4 +31,5 @@ export class EndSessionDto {
   scores!: ScoreInputDto[];
   @IsOptional() @IsArray() @ArrayMaxSize(500) @ValidateNested({ each: true }) @Type(() => SessionEventInputDto)
   events?: SessionEventInputDto[];
+  @IsOptional() @IsObject() metrics?: Record<string, unknown>;
 }

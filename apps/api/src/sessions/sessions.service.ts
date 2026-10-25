@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { DOMAINS, type GameSlug, type SessionDto, type StartSessionResponse } from '@cognicare/shared';
+import { DOMAINS, isValidMetrics, type GameSlug, type SessionDto, type StartSessionResponse } from '@cognicare/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { addDays, mean, startOfDay } from '../scoring/dates';
@@ -46,6 +46,9 @@ export class SessionsService {
     if (session.patientId !== patientId) throw new ForbiddenException();
     if (session.status !== 'in_progress') throw new ConflictException('session already ended');
 
+    if (body.metrics !== undefined && !isValidMetrics(body.metrics)) {
+      throw new BadRequestException('metrics must be an object (<=32KB, nesting <=4, finite numbers)');
+    }
     const ids = body.scores.map((s) => domainId(s.domain));
     if (ids.some((i) => i < 1) || new Set(ids).size !== ids.length) throw new BadRequestException('invalid or duplicate domain');
     const metrics = await this.prisma.metricDefinition.findMany({ where: { gameId: session.gameId, domainId: { in: ids } } });
@@ -56,7 +59,7 @@ export class SessionsService {
     await this.prisma.$transaction(async (tx) => {
       await tx.gameSession.update({
         where: { id: sessionId },
-        data: { endedAt, totalDurationMs: body.totalDurationMs, status: body.status as any },
+        data: { endedAt, totalDurationMs: body.totalDurationMs, status: body.status as any, ...(body.metrics ? { metrics: body.metrics as any } : {}) },
       });
       if (body.events?.length) {
         await tx.sessionEvent.createMany({

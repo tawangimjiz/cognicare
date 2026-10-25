@@ -99,7 +99,7 @@ model GameLevel {
   id                 String  @id @default(uuid()) @map("level_id") @db.Uuid
   gameId             String  @map("game_id") @db.Uuid
   game               Game    @relation(fields: [gameId], references: [id], onDelete: Cascade)
-  tier               Int     @db.SmallInt     // 1..3
+  tier               Int     @db.SmallInt     // 1..5 (4=2-back, 5=3-back)
   entropyScore       Float?  @map("entropy_score")
   avgDifficultyScore Float?  @map("avg_difficulty_score")
   imagePath          String? @map("image_path")
@@ -121,6 +121,7 @@ model GameSession {
   endedAt         DateTime?     @map("ended_at") @db.Timestamptz
   totalDurationMs Int?          @map("total_duration_ms")
   status          SessionStatus @default(in_progress) @map("session_status")
+  metrics         Json?         @map("metrics")
   events SessionEvent[]
   scores SessionScore[]
   @@index([patientId, startedAt])

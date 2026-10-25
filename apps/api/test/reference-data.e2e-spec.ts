@@ -36,13 +36,13 @@ describe('Reference data from migrations only (fresh DB, no seed)', () => {
     expect(rows.map((r) => [r.id, r.key])).toEqual(DOMAINS.map((d, i) => [i + 1, d.key]));
   });
 
-  it('has every game with its primary domain, ready flag and tiers 1..3', async () => {
+  it('has every game with its primary domain, ready flag and tiers 1..5', async () => {
     const games = await fresh.game.findMany({ include: { levels: true } });
     expect(games).toHaveLength(GAMES.length);
     for (const g of GAMES) {
       const row = games.find((x) => x.slug === g.id);
       expect(row).toMatchObject({ name: g.name, primaryDomainId: g.domainIdx + 1, isReady: g.ready });
-      expect(row!.levels.map((l) => l.tier).sort()).toEqual([1, 2, 3]);
+      expect(row!.levels.map((l) => l.tier).sort()).toEqual([1, 2, 3, 4, 5]);
     }
   });
 
