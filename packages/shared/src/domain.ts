@@ -16,7 +16,7 @@ export const DOMAINS: DomainDef[] = [
 
 export const GAMES: GameDef[] = [
   { id: 'spot', name: 'จับผิดภาพ', domainIdx: 4, icon: 'brain', ready: true, ai: true },
-  { id: 'oneback', name: 'One Back Task', domainIdx: 0, icon: 'target', ready: false, ai: true },
+  { id: 'oneback', name: 'One Back Task', domainIdx: 0, icon: 'target', ready: true, ai: true },
   { id: 'maze', name: 'เขาวงกต 3D', domainIdx: 2, icon: 'compass', ready: false, ai: false },
 ];
 
