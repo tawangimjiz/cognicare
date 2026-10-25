@@ -76,6 +76,10 @@ npx newman run docs/cognicare.postman_collection.json   # needs the API running 
 `/patient/games/mock` (a fake game that speaks the bridge) exists only in dev (`npm run dev:web`).
 Day boundaries ("today", streaks, report ranges) use Asia/Bangkok time.
 
+## Known audit findings
+
+`npm audit` reports 3 high findings, all one chain: `prisma` -> `@prisma/config` -> `deepmerge-ts` < 8 (GHSA-ggr8-5vv4-36mx, stack exhaustion on recursive object graphs). Only deepmerge-ts 8.0.0 fixes it, and Prisma 6.x pins 7.x; the fix needs Prisma 7/8 (breaking), so it is accepted. It is reachable only in the Prisma CLI (`generate`, `migrate deploy`, `db seed`) merging our own config, never from request handling. `multer` is pinned to 2.5.0 via `overrides` in package.json (GHSA-q7qp-rjg7-q26m) because NestJS 11 pins 2.4.0; drop the override once NestJS ships 2.5+.
+
 ## Updating a game build
 
 Unity WebGL builds are **not stored in git** (no Git LFS). Each build is a GitHub **release asset**

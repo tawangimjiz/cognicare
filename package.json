@@ -17,5 +17,6 @@
     "db:seed": "npm run db:seed -w apps/api",
     "user:create": "npm run user:create -w apps/api --",
     "user:link": "npm run user:link -w apps/api --"
-  }
+  },
+  "overrides": { "@nestjs/platform-express": { "multer": "^2.5.0" } }
 }
