@@ -32,6 +32,12 @@ const value = (p: P, d: number, k: number) => {
 };
 
 async function main() {
+  // Domains, games, levels and metric definitions come from the reference_data migration.
+  // Checked before the wipe so a DB that was never migrated keeps its data.
+  const gameId: Record<string, string> = {};
+  for (const g of await prisma.game.findMany()) gameId[g.slug] = g.id;
+  if (GAMES.some((g) => !gameId[g.id])) throw new Error('games missing: run `npm run db:migrate` first');
+
   // wipe (children first)
   await prisma.sessionScore.deleteMany();
   await prisma.sessionEvent.deleteMany();
@@ -41,10 +47,6 @@ async function main() {
   await prisma.patientProfile.deleteMany();
   await prisma.user.deleteMany();
 
-  // Domains, games, levels and metric definitions come from the reference_data migration.
-  const gameId: Record<string, string> = {};
-  for (const g of await prisma.game.findMany()) gameId[g.slug] = g.id;
-  if (GAMES.some((g) => !gameId[g.id])) throw new Error('games missing: run `npm run db:migrate` first');
   const domId = (key: string) => DOMAINS.findIndex((d) => d.key === key) + 1;
 
   const hash = await bcrypt.hash('password123', 10);

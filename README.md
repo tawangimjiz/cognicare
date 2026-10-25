@@ -15,7 +15,7 @@ Brain-training and follow-up platform for people with MCI. Monorepo:
 |---|---|
 | Web | 3000 |
 | API | 4000 (`/api/health`) |
-| PostgreSQL (docker) | **5433** on the host (5432 is often taken by a local Postgres; override with `POSTGRES_PORT`) |
+| PostgreSQL (docker) | **5433** on the host (5432 is often taken by a local Postgres; override with `POSTGRES_PORT`). Needs PostgreSQL 13+ (migrations use built-in `gen_random_uuid()`); docker uses 16 |
 | Redis (docker) | 6379 |
 
 ## Setup

@@ -13,7 +13,7 @@ Unity WebGL builds live at `apps/web/public/games/<gameId>/index.html` (`spot`, 
 | type | extra fields |
 |---|---|
 | `ready` | |
-| `session:start` | `tier: 1..5` (1 easy, 2 medium, 3 hard, 4 = 2-back, 5 = 3-back; a tier needs a `game_levels` row, seeded for all games) |
+| `session:start` | `tier: 1..5` (1 easy, 2 medium, 3 hard, 4 = 2-back, 5 = 3-back; a tier needs a `game_levels` row, created for all games by the `reference_data` migration) |
 | `session:event` | `event: {type, at(ISO), reactionTimeMs?, data?}` |
 | `session:end` | `result: {status: completed\|timed_out\|out_of_mistakes\|abandoned, totalDurationMs, scores: [{domain, rawScore, errorRate?, meanReactionTimeMs?}] (1..6), events?: (<=500), metrics?: object}` |
 | `exit` | |
